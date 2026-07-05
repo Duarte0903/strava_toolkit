@@ -1,0 +1,4 @@
+com.samsung.health.exercise
+datauuid,exercise_type,duration,distance,mean_heart_rate,max_heart_rate,calorie,time_offset,start_time,live_data,location_data
+w1,1002,600000,2000,150,182,310,0,2025-06-14 08:00:00,w1.live_data,w1.location_data
+w2,1001,300000,1000,120,150,150,0,2025-06-13 07:00:00,,

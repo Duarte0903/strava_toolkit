@@ -1,0 +1,37 @@
+# --- macOS ---
+.DS_Store
+
+# --- Claude Code (local, machine-specific) ---
+.claude/settings.local.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# --- Swift Package Manager ---
+.build/
+Package.resolved
+
+# --- Xcode ---
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+
+# --- XcodeGen output (regenerate with `xcodegen generate`) ---
+/ios/StravaToolkitApp/StravaToolkit.xcodeproj/
+
+# --- Exporter output (generated activity files / folders) ---
+strava_upload/
+tcx_out/
+gpx_out/
+workouts_tcx/
+*.tcx
+*.gpx
+
+# --- On-device / local export log ---
+exported.json
