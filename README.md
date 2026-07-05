@@ -5,10 +5,18 @@ you can upload to Strava **for free** — no Strava API, no paid subscription, n
 OAuth. There's a Python desktop app, a set of command-line converters, and a
 native iOS app.
 
-Why this exists: Strava's API now needs a paid subscription, but manual file
-upload at [strava.com/upload/select](https://www.strava.com/upload/select) is
-free. Samsung exports store each workout as time-series **heart rate, speed,
-cadence and distance** (plus **GPS** when the workout was recorded outdoors).
+## Why this exists
+
+**Tizen OS (Galaxy Watch) no longer supports the Strava app**, so workouts
+recorded on the watch can't sync to Strava directly anymore. The way to keep your
+Strava integration is to **log workouts in the native Samsung Health app and
+export them manually** — which is exactly what this toolkit automates. It's a
+fully **manual, cost-free** method: Strava's API now needs a paid subscription,
+but manual file upload at
+[strava.com/upload/select](https://www.strava.com/upload/select) is free.
+
+Samsung exports store each workout as time-series **heart rate, speed, cadence
+and distance** (plus **GPS** when the workout was recorded outdoors).
 
 - Workouts **without** GPS → **TCX** (distance + heart-rate activity, no map).
 - Workouts **with** GPS → **GPX** (route map + heart rate).
