@@ -15,6 +15,7 @@ final class AppModel: ObservableObject {
     @Published var hideExported = false
 
     @Published var status = ""
+    @Published var isLoading = false
     @Published var importError: String?
     @Published var lastExport: ExportSummary?
 
@@ -69,27 +70,42 @@ final class AppModel: ObservableObject {
 
     // MARK: import
 
-    /// Import a Samsung export .zip: unzip into a temp dir, then parse.
+    private struct ParsedExport { let exDir: URL; let items: [Workout] }
+
+    /// Import a Samsung export .zip: unzip into a temp dir, then parse. The
+    /// unzip/parse runs off the main thread so the UI can show a spinner.
     func importZip(_ url: URL) {
         importError = nil
+        isLoading = true
         status = "Loading…"
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        do {
+        Task {
+            do {
+                let parsed = try await Self.parseExport(url)
+                self.exDir = parsed.exDir
+                self.workouts = parsed.items
+                self.selection = []
+                self.typeFilter = "All"
+                self.status = "Loaded \(parsed.items.count) workouts."
+            } catch {
+                self.importError = "\(error)"
+                self.status = ""
+            }
+            self.isLoading = false
+        }
+    }
+
+    /// The heavy lifting: unzip and parse the export off the main actor.
+    private nonisolated static func parseExport(_ url: URL) async throws -> ParsedExport {
+        try await Task.detached(priority: .userInitiated) {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
                 .appendingPathComponent("samsung-export-\(UUID().uuidString)")
             try ZipReader.unzip(url, to: tmp)
             let root = try SamsungExport.resolve(tmp)
             let items = SamsungExport.loadWorkouts(root: root)
-            self.exDir = root.exDir
-            self.workouts = items
-            self.selection = []
-            self.typeFilter = "All"
-            self.status = "Loaded \(items.count) workouts."
-        } catch {
-            self.importError = "\(error)"
-            self.status = ""
-        }
+            return ParsedExport(exDir: root.exDir, items: items)
+        }.value
     }
 
     // MARK: selection helpers

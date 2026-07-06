@@ -15,6 +15,10 @@ struct ContentView: View {
                     ImportPrompt(showImporter: $showImporter)
                 }
             }
+            .overlay {
+                if model.isLoading { LoadingOverlay() }
+            }
+            .animation(.easeInOut(duration: 0.2), value: model.isLoading)
             .navigationTitle("Samsung → Strava")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -35,6 +39,24 @@ struct ContentView: View {
             } message: { Text(model.importError ?? "") }
         }
         .tint(Theme.accent)
+    }
+}
+
+private struct LoadingOverlay: View {
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.25).ignoresSafeArea()
+            VStack(spacing: 14) {
+                ProgressView()
+                    .controlSize(.large)
+                    .tint(Theme.accent)
+                Text("Reading export…")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            .padding(28)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        }
+        .transition(.opacity)
     }
 }
 

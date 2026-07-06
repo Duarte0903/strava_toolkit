@@ -9,9 +9,22 @@ struct WorkoutListView: View {
             filters
             List {
                 ForEach(model.filtered) { w in
-                    NavigationLink { WorkoutDetailView(workout: w) } label: {
-                        WorkoutRow(workout: w, selected: model.selection.contains(w.id))
-                            .contentShape(Rectangle())
+                    HStack(spacing: 4) {
+                        Button {
+                            model.toggle(w.id)
+                        } label: {
+                            Image(systemName: model.selection.contains(w.id) ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(model.selection.contains(w.id) ? Theme.accent : Color.secondary)
+                                .imageScale(.large)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        NavigationLink { WorkoutDetailView(workout: w) } label: {
+                            WorkoutRow(workout: w)
+                                .contentShape(Rectangle())
+                        }
                     }
                     .swipeActions(edge: .leading) {
                         Button(model.selection.contains(w.id) ? "Deselect" : "Select") {
@@ -77,12 +90,9 @@ struct WorkoutListView: View {
 
 struct WorkoutRow: View {
     let workout: Workout
-    let selected: Bool
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(selected ? Theme.accent : Color.secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(workout.label) · \(fmtDate(workout.startMs))").font(.body)
                 Text("\(fmtDuration(workout.durationSeconds)) · \(fmtDistance(workout.distanceMeters))")
