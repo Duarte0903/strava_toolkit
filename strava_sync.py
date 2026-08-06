@@ -26,6 +26,11 @@ import tempfile
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+
+import samsung_export as sx  # noqa: E402
+
 GPX = os.path.join(HERE, "samsung_to_gpx.py")
 TCX = os.path.join(HERE, "samsung_to_tcx.py")
 UPLOAD_URL = "https://www.strava.com/upload/select"
@@ -73,15 +78,13 @@ def resolve_export(path):
     if not root:
         sys.exit(color(
             "Couldn't find Samsung workout data under:\n  " + path +
-            "\nExpected a 'com.samsung.health.exercise.*.csv' file somewhere inside.", "red"))
+            "\nExpected a 'com.samsung.health.exercise.*.csv' (or "
+            "'com.samsung.shealth.exercise.*.csv') file somewhere inside.", "red"))
     return root
 
 
 def find_root(path):
-    if glob.glob(os.path.join(path, "com.samsung.health.exercise*.csv")):
-        return path
-    hits = glob.glob(os.path.join(path, "**", "com.samsung.health.exercise*.csv"), recursive=True)
-    return os.path.dirname(hits[0]) if hits else None
+    return sx.find_root(path)
 
 
 # --- running the converters -------------------------------------------------
