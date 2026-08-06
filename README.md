@@ -16,10 +16,27 @@ but manual file upload at
 [strava.com/upload/select](https://www.strava.com/upload/select) is free.
 
 Samsung exports store each workout as time-series **heart rate, speed, cadence
-and distance** (plus **GPS** when the workout was recorded outdoors).
+and distance** (plus **GPS** when the workout was recorded outdoors). Which of
+those fields are actually filled in depends on the watch and the exercise mode —
+older or gym-mode workouts often have no heart rate and no GPS at all.
 
 - Workouts **without** GPS → **TCX** (distance + heart-rate activity, no map).
 - Workouts **with** GPS → **GPX** (route map + heart rate).
+
+### Export layouts
+
+Samsung has shipped two different layouts of the "download my data" export and
+both are supported — the toolkit detects which one you have:
+
+| | legacy | current |
+|---|---|---|
+| exercise table | `com.samsung.health.exercise.*.csv` | `com.samsung.shealth.exercise.*.csv` |
+| column names | `duration`, `start_time`, … | prefixed `com.samsung.health.exercise.duration`, … |
+| per-workout JSON | `jsons/com.samsung.health.exercise/` | `jsons/com.samsung.shealth.exercise/<0-f>/` |
+| `time_offset` | milliseconds, `start_time` is local | `UTC+0200`, `start_time` is already UTC |
+
+`samsung_export.py` normalises both into one shape; the converters never see the
+difference.
 
 ## Repository layout
 
@@ -27,6 +44,7 @@ and distance** (plus **GPS** when the workout was recorded outdoors).
 .
 ├── strava_gui.py            Desktop app (Tkinter) — pick workouts from a list, export
 ├── workout_core.py          Shared, GUI-free logic used by the app
+├── samsung_export.py        Locates & normalises an export (both Samsung layouts)
 ├── export_log.py            Tracks which workouts were already exported
 ├── samsung_to_tcx.py        CLI converter → TCX (no-GPS workouts)
 ├── samsung_to_gpx.py        CLI converter → GPX (GPS workouts)
@@ -34,6 +52,7 @@ and distance** (plus **GPS** when the workout was recorded outdoors).
 ├── Run Strava Exporter (Mac).command / (Windows).bat   Double-click launchers
 ├── test_workout_core.py     Tests (stdlib unittest)
 ├── test_export_log.py       Tests (stdlib unittest)
+├── test_samsung_export.py   Tests (stdlib unittest)
 ├── ios/                     Native iOS app + Swift core package  (see ios/README.md)
 └── docs/superpowers/specs/  Design specs
 ```
@@ -99,7 +118,7 @@ feed the `.zip` (or the unzipped folder) to any tool above.
 
 ```
 # Python tests (stdlib unittest — nothing to install)
-python3 -m unittest test_workout_core test_export_log
+python3 -m unittest test_workout_core test_export_log test_samsung_export
 
 # Swift core package: headless verification (no Xcode needed)
 cd ios/StravaToolkitKit && swift run stkcheck Tests/StravaToolkitKitTests/Fixtures

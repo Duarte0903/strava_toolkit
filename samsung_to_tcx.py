@@ -20,15 +20,22 @@ Standard library only — nothing to install.
 """
 
 import argparse
-import csv
-import glob
-import gzip
-import json
 import os
 import sys
 from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+
+import samsung_export as sx  # noqa: E402
+
+# Re-exported so the GUI and the older call sites keep working unchanged.
+load_json = sx.load_json
+read_exercise_csv = sx.read_exercise_csv
+parse_csv_datetime = sx.parse_csv_datetime
+tz_offset_ms = sx.tz_offset_ms
+load_points = sx.load_points
 
 # Samsung exercise_type -> (label for the activity name, TCX Sport attribute).
 # TCX Sport only allows Running / Biking / Other; Strava maps those to
@@ -60,34 +67,10 @@ def label_for(code):
     return LABEL.get(code, "Workout")
 
 
-def load_json(path):
-    with open(path, "rb") as f:
-        raw = f.read()
-    if raw[:2] == b"\x1f\x8b":
-        raw = gzip.decompress(raw)
-    return json.loads(raw.decode("utf-8", errors="replace"))
-
-
 def iso(unix_ms):
     return datetime.fromtimestamp(unix_ms / 1000, tz=timezone.utc).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
-
-
-def parse_csv_datetime(s, offset_ms=0):
-    """The exercise CSV stores start_time as a local date string like
-    '08/10/2021, 10:48:24'. Convert to a UTC epoch (ms), removing the local
-    time_offset so it lines up with the epoch timestamps in live_data."""
-    if not s:
-        return None
-    for fmt in ("%d/%m/%Y, %H:%M:%S", "%m/%d/%Y, %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
-        try:
-            dt = datetime.strptime(s.strip(), fmt)
-            local_ms = int(dt.replace(tzinfo=timezone.utc).timestamp() * 1000)
-            return local_ms - int(offset_ms or 0)
-        except ValueError:
-            continue
-    return None
 
 
 def fnum(v):
@@ -99,27 +82,10 @@ def fnum(v):
 
 
 def find_paths(base):
-    ex_dir = os.path.join(base, "jsons", "com.samsung.health.exercise")
-    if not os.path.isdir(ex_dir):
-        hits = glob.glob(os.path.join(base, "**", "com.samsung.health.exercise"), recursive=True)
-        ex_dir = hits[0] if hits else None
-    csvs = glob.glob(os.path.join(base, "com.samsung.health.exercise*.csv"))
-    if not ex_dir or not csvs:
-        sys.exit(
-            "Couldn't find the exercise data. Point me at the UNZIPPED export "
-            "folder (the one containing 'com.samsung.health.exercise.*.csv' and a "
-            "'jsons/' folder)."
-        )
-    return ex_dir, csvs[0]
-
-
-def read_exercise_csv(csv_path):
-    """Yield dict rows from the exercise CSV (skips Samsung's junk first line)."""
-    with open(csv_path, encoding="utf-8-sig", errors="replace") as f:
-        first = f.readline()
-        if not first.lower().startswith("com.samsung"):
-            f.seek(0)  # no junk line, rewind
-        yield from csv.DictReader(f)
+    try:
+        return sx.find_paths(base)
+    except sx.ExportFormatError as e:
+        sys.exit(str(e))
 
 
 def build_track(points, total_distance):
@@ -273,16 +239,8 @@ def main():
         if args.skip_gps and (row.get("location_data") or "").strip():
             continue  # has GPS -> handled by samsung_to_gpx.py
 
-        # live_data time series (column value is like "<uuid>.live_data")
-        ref = (row.get("live_data") or "").strip()
-        points = []
-        if ref:
-            path = os.path.join(ex_dir, ref + ".json")
-            if os.path.exists(path):
-                try:
-                    points = load_json(path)
-                except Exception as e:
-                    print("  ! could not read {}: {}".format(os.path.basename(path), e))
+        # live_data time series (the column names a JSON file next to the CSV)
+        points = sx.load_points(ex_dir, row.get("live_data"))
 
         total_distance = fnum(row.get("distance")) or 0.0
         track, computed = build_track(points, total_distance)
@@ -292,7 +250,7 @@ def main():
         if track:
             start = track[0]["t"]
         else:
-            start = parse_csv_datetime(row.get("start_time"), fnum(row.get("time_offset")) or 0)
+            start = parse_csv_datetime(row.get("start_time"), row.get("time_offset"))
         if start is None:
             continue
 
