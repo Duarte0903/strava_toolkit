@@ -529,7 +529,7 @@ class App:
             if since_ms and (it["start"] or 0) < since_ms:
                 continue
             if q:
-                hay = (wc.fmt_date(it["start"]) + " " + it["label"]).lower()
+                hay = (wc.fmt_date(it["start"], it.get("tz_offset_ms", 0)) + " " + it["label"]).lower()
                 if q not in hay:
                     continue
             self.view.append(it)
@@ -540,7 +540,7 @@ class App:
             self.tree.insert("", "end", iid=it["id"],
                              tags=("odd" if i % 2 else "even",),
                              values=(
-                                 box, wc.fmt_date(it["start"]), it["label"],
+                                 box, wc.fmt_date(it["start"], it.get("tz_offset_ms", 0)), it["label"],
                                  wc.fmt_duration(it["duration_s"]), wc.fmt_distance(it["distance_m"]),
                                  "" if it["avg_hr"] is None else "{:.0f}".format(it["avg_hr"]),
                                  "✓" if it["has_gps"] else "",
