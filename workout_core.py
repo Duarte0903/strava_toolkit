@@ -12,7 +12,6 @@ Kept free of tkinter so it can be tested headlessly.
 
 import os
 import sys
-import glob
 import tempfile
 import zipfile
 from datetime import datetime, timezone
@@ -21,6 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
+import samsung_export as sx    # noqa: E402
 import samsung_to_tcx as tcx   # noqa: E402
 import samsung_to_gpx as gpx   # noqa: E402
 
@@ -43,20 +43,14 @@ def resolve_export(path):
         note = "Unzipped to a temporary folder."
         path = dest
 
-    root = _find_root(path)
+    root = sx.find_root(path)
     if not root:
         raise ValueError(
             "Couldn't find Samsung workout data under:\n" + path +
-            "\n\nExpected a 'com.samsung.health.exercise.*.csv' somewhere inside."
+            "\n\nExpected a 'com.samsung.health.exercise.*.csv' (or "
+            "'com.samsung.shealth.exercise.*.csv') somewhere inside."
         )
     return root, note
-
-
-def _find_root(path):
-    if glob.glob(os.path.join(path, "com.samsung.health.exercise*.csv")):
-        return path
-    hits = glob.glob(os.path.join(path, "**", "com.samsung.health.exercise*.csv"), recursive=True)
-    return os.path.dirname(hits[0]) if hits else None
 
 
 # --------------------------------------------------------------------------- #
@@ -74,8 +68,8 @@ def load_workouts(export_root):
         dur_s = (tcx.fnum(row.get("duration")) or 0) / 1000.0
         dist_m = tcx.fnum(row.get("distance")) or 0.0
         hr = tcx.fnum(row.get("mean_heart_rate"))
-        offset = tcx.fnum(row.get("time_offset")) or 0
-        start = tcx.parse_csv_datetime(row.get("start_time"), offset)
+        raw_offset = row.get("time_offset")
+        start = sx.parse_csv_datetime(row.get("start_time"), raw_offset)
         has_gps = bool((row.get("location_data") or "").strip())
         items.append({
             "id": ex_id,
@@ -83,6 +77,7 @@ def load_workouts(export_root):
             "code": code,
             "label": tcx.label_for(code),
             "start": start,                       # epoch ms (UTC) or None
+            "tz_offset_ms": sx.tz_offset_ms(raw_offset),
             "duration_s": dur_s,
             "distance_m": dist_m,
             "avg_hr": hr,
@@ -95,10 +90,12 @@ def load_workouts(export_root):
 # --------------------------------------------------------------------------- #
 # Display helpers
 # --------------------------------------------------------------------------- #
-def fmt_date(start_ms):
+def fmt_date(start_ms, tz_offset_ms=0):
+    """Format a workout start in the local time the user actually saw on the watch."""
     if not start_ms:
         return "—"
-    return datetime.fromtimestamp(start_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+    local = (start_ms + (tz_offset_ms or 0)) / 1000
+    return datetime.fromtimestamp(local, tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
 
 
 def fmt_duration(sec):
@@ -121,16 +118,7 @@ def _safe_name(start_ms, label, ex_id, ext):
 
 
 def _load(ex_dir, ref):
-    ref = (ref or "").strip()
-    if not ref:
-        return []
-    p = os.path.join(ex_dir, ref + ".json")
-    if os.path.exists(p):
-        try:
-            return tcx.load_json(p)
-        except Exception:
-            return []
-    return []
+    return sx.load_points(ex_dir, ref)
 
 
 def export_workout(ex_dir, item, out_dir, fmt="auto"):
@@ -227,7 +215,7 @@ def load_detail(ex_dir, item):
 
     return {
         "sport": item["label"],
-        "date": fmt_date(item["start"]),
+        "date": fmt_date(item["start"], item.get("tz_offset_ms", 0)),
         "duration_s": dur_s,
         "distance_m": dist_m,
         "avg_hr": item["avg_hr"],

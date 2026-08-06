@@ -16,6 +16,9 @@ venv/
 .build/
 Package.resolved
 
+# --- jetbrain ---
+.idea
+
 # --- Xcode ---
 xcuserdata/
 *.xcuserstate

@@ -17,15 +17,18 @@ Standard library only — nothing to install.
 """
 
 import argparse
-import csv
-import glob
-import gzip
-import json
 import os
 import sys
 from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+
+import samsung_export as sx  # noqa: E402
+
+load_json = sx.load_json
+read_exercise_csv = sx.read_exercise_csv
 
 # Samsung exercise_type -> (label, GPX <type> hint). GPX <type> is advisory;
 # Strava lets you correct the sport afterward.
@@ -42,14 +45,6 @@ LABEL = {
 }
 
 
-def load_json(path):
-    with open(path, "rb") as f:
-        raw = f.read()
-    if raw[:2] == b"\x1f\x8b":
-        raw = gzip.decompress(raw)
-    return json.loads(raw.decode("utf-8", errors="replace"))
-
-
 def iso(unix_ms):
     return datetime.fromtimestamp(unix_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -63,25 +58,10 @@ def fnum(v):
 
 
 def find_paths(base):
-    ex_dir = os.path.join(base, "jsons", "com.samsung.health.exercise")
-    if not os.path.isdir(ex_dir):
-        hits = glob.glob(os.path.join(base, "**", "com.samsung.health.exercise"), recursive=True)
-        ex_dir = hits[0] if hits else None
-    csvs = glob.glob(os.path.join(base, "com.samsung.health.exercise*.csv"))
-    if not ex_dir or not csvs:
-        sys.exit(
-            "Couldn't find the exercise data. Point me at the UNZIPPED export folder "
-            "(with 'com.samsung.health.exercise.*.csv' and a 'jsons/' folder)."
-        )
-    return ex_dir, csvs[0]
-
-
-def read_exercise_csv(csv_path):
-    with open(csv_path, encoding="utf-8-sig", errors="replace") as f:
-        first = f.readline()
-        if not first.lower().startswith("com.samsung"):
-            f.seek(0)
-        yield from csv.DictReader(f)
+    try:
+        return sx.find_paths(base)
+    except sx.ExportFormatError as e:
+        sys.exit(str(e))
 
 
 def merge_location_hr(loc_points, live_points):
@@ -172,31 +152,12 @@ def main():
         if not ex_id:
             continue
 
-        loc_ref = (row.get("location_data") or "").strip()
-        if not loc_ref:
+        loc_points = sx.load_points(ex_dir, row.get("location_data"))
+        if not loc_points:
             no_gps += 1
             continue  # no GPS track for this workout
 
-        loc_path = os.path.join(ex_dir, loc_ref + ".json")
-        if not os.path.exists(loc_path):
-            no_gps += 1
-            continue
-        try:
-            loc_points = load_json(loc_path)
-        except Exception as e:
-            print("  ! could not read {}: {}".format(os.path.basename(loc_path), e))
-            no_gps += 1
-            continue
-
-        live_ref = (row.get("live_data") or "").strip()
-        live_points = []
-        if live_ref:
-            lp = os.path.join(ex_dir, live_ref + ".json")
-            if os.path.exists(lp):
-                try:
-                    live_points = load_json(lp)
-                except Exception:
-                    pass
+        live_points = sx.load_points(ex_dir, row.get("live_data"))
 
         rows_merged = merge_location_hr(loc_points, live_points)
         gps = [r for r in rows_merged if fnum(r.get("latitude")) is not None]
